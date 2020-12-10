@@ -1,0 +1,33 @@
+public without sharing class WechatRedirectController {
+    
+    private static String WECHAT_DEVELOPER_NAME = 'Signin_with_Wechat';
+    
+    @AuraEnabled
+    public static String createState(String state) {
+        WechatRedirect__c mv = new WechatRedirect__c();
+        mv.state__c = state;
+        insert mv;
+        Wechat_Setting__mdt mdt = getWechatConfiguration();
+        String authUrl = mdt.Authorize_Endpoint_URL__c;
+        String appId = mdt.App_Id__c;
+        String wechatRedirectUrl = EncodingUtil.urlEncode(mdt.WechatRedirectUrl__c, 'UTF-8');
+        String redirectUrl = authUrl + '?appid=' + appId +'&scope=snsapi_login&response_type=code&redirect_uri=' + wechatRedirectUrl + 
+             				'&state=' + mv.Id + '#wechat_redirect';
+        return redirectUrl;
+    }
+    
+    @AuraEnabled
+    public static String getState(String stateId, String code) {
+        List<WechatRedirect__c> mvList = [Select state__c From WechatRedirect__c where Id =: stateId];
+        Wechat_Setting__mdt mdt = getWechatConfiguration();
+        String redirectUrl = mdt.Call_back__c + '?code=' + code +'&state=' + mvList[0].state__c;
+        return redirectUrl;
+    }
+    
+    private static Wechat_Setting__mdt getWechatConfiguration() {
+        Wechat_Setting__mdt mdt = [Select App_Id__c, App_Secret__c, Authorize_Endpoint_URL__c, Call_back__c, 
+                                   Token_Endpoint_URL__c, User_Info_Endpoint_URL__c, WechatRedirectUrl__c 
+                                   From Wechat_Setting__mdt Where DeveloperName =: WECHAT_DEVELOPER_NAME limit 1];
+        return mdt;
+    }
+}
