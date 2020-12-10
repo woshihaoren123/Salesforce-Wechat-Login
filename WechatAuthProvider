@@ -1,0 +1,123 @@
+global class CustomerWechatProvider extends Auth.AuthProviderPluginClass{    
+
+    // Type of token.
+    private static final String tokenType = 'refreshToken';
+    private static final String CUSTOM_MDT_NAME = 'Wechat_Setting__mdt';
+    private String openId;
+    private String stateId;
+    
+    // name of custom metadata type to embed configuration fields in auth provider
+    global String getCustomMetadataType() {
+        return CUSTOM_MDT_NAME;
+    }
+    
+    // directly redirect the user back to the callback URL, as we already have the client key and secret  
+    // to be used for authenticating directly
+    global PageReference initiate(Map<string,string> authProviderConfiguration, String stateToPropagate) {
+        System.debug('authProviderConfiguration ====> ' + authProviderConfiguration);
+        String authUrl = authProviderConfiguration.get('Authorize_Endpoint_URL__c');
+        String appId = authProviderConfiguration.get('App_Id__c');
+        String wechatRedirectUrl = authProviderConfiguration.get('redirectUrl');
+        String callbackUrl = EncodingUtil.urlEncode(authProviderConfiguration.get('Call_back__c'), 'UTF-8');
+        // redirect to new page, wechat issue: state too long
+        PageReference loginEndpoint = new PageReference(wechatRedirectUrl + '?st=' + EncodingUtil.urlEncode(stateToPropagate, 'UTF-8'));
+        return loginEndpoint;
+    }
+    
+    // handle instantaneous callback and then use named credetial (username and password / client key and secret) to retrieve access token
+    global Auth.AuthProviderTokenResponse handleCallback(Map<string,string> authProviderConfiguration, Auth.AuthProviderCallbackState state ) {       
+        Map<String,String> queryParams = state.queryParameters;
+        String accessTokenUrl = authProviderConfiguration.get('Token_Endpoint_URL__c');
+        String appId = authProviderConfiguration.get('App_Id__c');
+        String appSecret = authProviderConfiguration.get('App_Secret__c');
+        String callbackUrl = EncodingUtil.urlEncode(authProviderConfiguration.get('Call_back__c'), 'UTF-8');
+        String code = queryParams.get('code');
+        String endPoint = accessTokenUrl + '?appid=' + appId + '&secret=' + appSecret + '&code=' + code + '&grant_type=authorization_code';
+        HttpRequest req = new HttpRequest();      
+        req.setEndpoint(endPoint);
+        // req.setHeader('Content-Type','application/xml');
+        req.setMethod('GET');
+        
+        Http http = new Http();
+        HTTPResponse res = http.send(req);
+        String token = deserialiseToken(res);
+        System.debug('AccessToken ==========> ' + token);
+        String refreshToken = deserialiseRefreshToken(res);
+        return new Auth.AuthProviderTokenResponse('Signin_with_Wechat', token, refreshToken, queryParams.get('state'));
+    }
+    
+    // return fake username, as client_credential auth is not tied to a specific user
+    global Auth.UserData getUserInfo(Map<string,string> authProviderConfiguration, Auth.AuthProviderTokenResponse response) {        
+        String token = response.oauthToken;     
+        String userInfoUrl = authProviderConfiguration.get('User_Info_Endpoint_URL__c') + '?access_token=' + token + '&openid=' + this.openId;
+        
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint(userInfoUrl);
+        //req.setHeader('Content-Type','application/xml');
+        req.setMethod('GET');
+        
+        Http http = new Http();
+        HTTPResponse res = http.send(req);
+        String responseBody = res.getBody();
+        WechatUserResponse parsedResponse = (WechatUserResponse) System.JSON.deserialize(responseBody, WechatUserResponse.class);
+        Map<String, String> attributeMap = new Map<String, String>();
+        attributeMap.put('sfdc_networkid', '');  
+        attributeMap.put('openid', parsedResponse.openid);       
+        attributeMap.put('sex', parsedResponse.sex); 
+        attributeMap.put('province', parsedResponse.province); 
+        attributeMap.put('city', parsedResponse.city); 
+        attributeMap.put('country', parsedResponse.country); 
+        attributeMap.put('headimgurl', parsedResponse.headimgurl); 
+        attributeMap.put('openid', parsedResponse.openid); 
+        
+        system.debug('user information=====>' + parsedResponse);                
+        
+        return new Auth.UserData( 
+            parsedResponse.unionid, 
+            parsedResponse.nickname, 
+            parsedResponse.nickname, 
+            parsedResponse.nickname,
+            parsedResponse.openid,
+            'null', null, null, 'null', null, attributeMap);
+    }
+    
+    // deserialise response and return token
+    private String deserialiseToken(HTTPResponse res) {
+        
+        String responseBody = res.getBody();
+        
+        WechatResponse parsedResponse = (WechatResponse) System.JSON.deserialize(responseBody, WechatResponse.class);
+        this.openId = parsedResponse.openid;
+        return parsedResponse.access_token;
+    }
+    
+    private String deserialiseRefreshToken(HTTPResponse res) {
+        
+        String responseBody = res.getBody();
+        
+        WechatResponse parsedResponse = (WechatResponse) System.JSON.deserialize(responseBody, WechatResponse.class);
+        return parsedResponse.refresh_token;
+    }
+    
+    // Structure of a token response from Facebook
+    public class WechatResponse {
+        public String access_token;
+        public String expires_in;
+        public String refresh_token;
+        public String openid;
+        public String scope;
+        public String unionid;
+    }
+    
+    // Structure of a user response from Facebook
+    public class WechatUserResponse {
+        public String unionid;
+        public String nickname;
+        public String sex;
+        public String province;
+        public String city;
+        public String country;
+        public String headimgurl;
+        public String openid;
+    }
+}
