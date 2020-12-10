@@ -1,0 +1,38 @@
+/**
+ * Login Handler By Wechat User
+ * 
+ **/
+global class WechatRegistrationHandler implements Auth.RegistrationHandler{
+    
+    private static final String TZSID = [SELECT timezonesidkey from User where profile.name = 'System Administrator' LIMIT 1].timezonesidkey;
+    
+    /**
+     * Create the User - A required method to implement the Handler Interface
+     * 
+     * @param portalId  - Id of the Community
+     * @param data - Auth Provider user data describing the User to create
+     * 
+     * @return User that has been initialized
+     **/ 
+    global User createUser(Id portalId, Auth.UserData data){
+        System.debug('data ===>' + data);
+
+        // create contact 
+        // return user
+        return null;
+    }
+    
+    /**
+     * Update the user
+     * @param portalId  - Id of the Community
+     * @param data - Auth Provider user data describing the User to create
+     **/     
+    global void updateUser(Id userId, Id portalId, Auth.UserData data){
+        System.debug('Update User data: ' + data);
+        System.debug('Update userId: ' + userId);
+       
+    }
+    
+    
+    class RegHandlerException extends Exception {}
+}
