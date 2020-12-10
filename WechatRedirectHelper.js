@@ -1,29 +1,29 @@
 ({
-	redirectToGetCode : function(component, state) {
-		    var action = component.get("c.createState");
+	saveState : function(component, state) {
+		var action = component.get("c.createState");
         action.setParams({
             state: state
         });
         action.setCallback(this, function(a){
             var rtnValue = a.getReturnValue();
-            console.log(rtnValue);
             if (rtnValue !== null) {
-                window.open('https://open.weixin.qq.com/connect/qrconnect?appid='+appid+'&redirect_uri='+redirectUrl+'&response_type=code&scope=snsapi_login'+'&state='+rtnValue+'#wechat_redirect','_self');
+                window.open(rtnValue, '_self');
             }
         });
         $A.enqueueAction(action);
 	},
     
-    redirectToGetToken : function(component, state) {
-		  var action = component.get("c.getState");
+    getState : function(component, state) {
+        var code = this.GetQueryString('code');
+		var action = component.get("c.getState");
         action.setParams({
-            stateId: state
+            stateId: state,
+            code: code
         });
         action.setCallback(this, function(a){
             var rtnValue = a.getReturnValue();
             if (rtnValue !== null) {
-                var code = this.GetQueryString('code');
-                window.open(callbackUrl + '?code='+code+'&state='+rtnValue,'_self');
+                window.open(rtnValue, '_self');
             }
         });
         $A.enqueueAction(action);
